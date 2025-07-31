@@ -28,7 +28,8 @@ You can optionally add confidence bounds (e.g., Upper/Lower) to visualize expect
 
 # Placeholder para logo (puedes reemplazar por `st.image("path/to/logo.png", width=150)`)
 st.markdown("---")
-st.image(str(logo_black))
+with open(logo_black, "rb") as f:
+    st.image(f.read(), width=150)
 st.markdown("---")
 
 # Subheader
