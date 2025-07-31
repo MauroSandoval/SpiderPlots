@@ -7,13 +7,17 @@ import matplotlib.patches as mpatches
 import matplotlib.path as mpath
 import numpy as np
 
-st.header("Spider Plot Generator")
+st.set_page_config(layout="wide")
 
-##Default values for testing
-upper_bound = 'Upper Bound'
-lower_bound = 'Lower Bound'
-##End
+st.markdown("""
+## 🕸️ Sensory Spider Plot Generator
 
+Upload your sensory evaluation CSV file and compare up to 5 different samples in a radar plot.
+You can optionally add confidence bounds (e.g., Upper/Lower) to visualize expected ranges.
+""")
+
+
+st.markdown("### 📁 Upload CSV")
 
 file = st.file_uploader("Upload csv file with sensory evaluation")
 
@@ -25,24 +29,34 @@ df.set_index("Attribute", inplace=True)
 
 st.dataframe(df)
 
-font_size = st.number_input("labels font size", min_value = 6.0, step = 0.5)
+st.markdown("---")
 
-sample_count = st.number_input("Number of samples to plot", min_value=1, step=1, value=1)
+col1, col2 = st.columns(2)
+
+with col2:
+    font_size = st.number_input("Labels font size", min_value=6.0, step=0.5)
+
+with col1:
+    sample_count = st.number_input("Number of samples to plot", min_value=1, step=1, value=1)
 
 sample_names = []
 sample_colors = []
 
-st.markdown("### Sample configuration")
+st.markdown("### Plot configuration")
 default_colors = ['#00b8ff', '#307af3', '#9fce47', '#ffaf40', '#fc5185']
 
-if file:
-    available_columns = [col for col in df.columns if col not in [upper_bound, lower_bound]]
+col3, col4 = st.columns(2)
 
-    for i in range(sample_count):
-        name = st.selectbox(f"Sample {i+1} column", options=available_columns, key=f"sample_{i}")
-        color = st.color_picker(f"Sample {i+1} color", value=default_colors[i % len(default_colors)])
-        sample_names.append(name)
-        sample_colors.append(color)
+with col3:
+    with st.expander("⚙️ Samples selection and configuration"):
+        if file:
+            available_columns = [col for col in df.columns if col not in []]
+
+            for i in range(sample_count):
+                name = st.selectbox(f"Sample {i+1} column", options=available_columns, key=f"sample_{i}")
+                color = st.color_picker(f"Sample {i+1} color", value=default_colors[i % len(default_colors)])
+                sample_names.append(name)
+                sample_colors.append(color)
 
 def polygon_patch(num_vars, radius=1.0):
     """Crea un Path de polígono regular para usar como fondo del radar chart."""
@@ -112,19 +126,20 @@ def generate_plot(df, font, sample_names, sample_colors, lower_bound=None, upper
     return fig
     
 # Bloque de configuración de límites
-st.markdown("### Optional bounds configuration")
-bound_options = st.multiselect("Select which bounds exist in your data", options=['Upper Bound', 'Lower Bound'])
+with col4:
+    with st.expander("⚙️ Optional bounds configuration"):
+        bound_options = st.multiselect("Select which bounds exist in your data", options=['Upper Bound', 'Lower Bound'])
 
-upper_bound_col = None
-lower_bound_col = None
+        upper_bound_col = None
+        lower_bound_col = None
 
-if file:
-    column_options = df.columns.tolist()
+        if file:
+            column_options = df.columns.tolist()
 
-    if 'Upper Bound' in bound_options:
-        upper_bound_col = st.selectbox("Select the column for Upper Bound", options=column_options, key="ub")
-    if 'Lower Bound' in bound_options:
-        lower_bound_col = st.selectbox("Select the column for Lower Bound", options=column_options, key="lb")
+            if 'Upper Bound' in bound_options:
+                upper_bound_col = st.selectbox("Select the column for Upper Bound", options=column_options, key="ub")
+            if 'Lower Bound' in bound_options:
+                lower_bound_col = st.selectbox("Select the column for Lower Bound", options=column_options, key="lb")
 
 # Luego al llamar la función de graficado:
 figure = generate_plot(df, font_size, sample_names, sample_colors, lower_bound_col, upper_bound_col)
