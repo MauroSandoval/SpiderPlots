@@ -1,5 +1,5 @@
-matplotlib==3.5.3
+matplotlib
 numpy
-pandas==1.4.4
+pandas
 streamlit==1.11.1
 pathlib
