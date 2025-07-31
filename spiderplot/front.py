@@ -190,7 +190,7 @@ if file:
             if sample in df.columns:
                 values = df[sample].tolist() + [df[sample].iloc[0]]
                 ax.plot(angles, values, color=color, linewidth=2, label=sample)
-                ax.fill(angles, values, color=color, alpha=0.1)
+                ax.fill(angles, values, color=color, alpha=0.05)
 
         ax.set_theta_offset(np.pi / 2)
         ax.set_theta_direction(-1)
