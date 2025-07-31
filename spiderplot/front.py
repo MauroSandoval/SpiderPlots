@@ -155,7 +155,7 @@ if file:
         labels += [labels[0]]
         labels_upper = [label.upper() for label in labels[:-1]]
 
-        fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
+        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
         
         ax.tick_params(labelsize=font * 0.9)
 
@@ -208,6 +208,11 @@ if file:
 
     st.markdown("---")
     figure = generate_plot(df, font_size, sample_names, sample_colors, lower_bound_col, upper_bound_col)
-    col_l, col_plot, col_r = st.columns([1, 2, 1])
+    
+    buf = io.BytesIO()
+    figure.savefig(buf, format='png', bbox_inches='tight')
+    buf.seek(0)
+
+    col_l, col_plot, col_r = st.columns([1, 3, 1])
     with col_plot:
-        st.pyplot(figure)
+        st.image(buf)
