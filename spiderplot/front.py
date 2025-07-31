@@ -52,31 +52,19 @@ def polygon_patch(num_vars, radius=1.0):
     return mpatches.PathPatch(mpath.Path(verts), transform=None)
 
 
-def generate_plot(df, font, sample_names, sample_colors, lower_bound='Lower Bound', upper_bound='Upper Bound'):
-    
-    # Etiquetas de atributos
+def generate_plot(df, font, sample_names, sample_colors, lower_bound=None, upper_bound=None):
     labels = df.index.tolist()
-
-    # Crear ángulos para cada eje (10 atributos + 1 para cerrar)
     angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
-    angles += [angles[0]]  # Cierra el círculo
+    angles += [angles[0]]
+    labels += [labels[0]]
 
-    # Valores de cada muestra + repetir primer valor
-    upper = df[upper_bound].tolist() + [df[upper_bound].iloc[0]]
-    lower = df[lower_bound].tolist() + [df[lower_bound].iloc[0]]
-    labels += [labels[0]]  # Para alinear con thetagrids
-
-    # Convertir etiquetas a mayúsculas
     labels_upper = [label.upper() for label in labels[:-1]]
-    
-    # Iniciar figura
+
     fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
 
-    # Estilo: desactivar fondo circular
+    # Reemplazo del fondo circular por decágono
+    num_vars = len(labels) - 1
     ax.set_frame_on(False)
-
-    # Reemplazar el fondo circular por un decágono
-    num_vars = len(labels) - 1  # 10 atributos
     ax.patch.set_visible(False)
     decagon = polygon_patch(num_vars)
     ax.add_patch(decagon)
@@ -85,43 +73,60 @@ def generate_plot(df, font, sample_names, sample_colors, lower_bound='Lower Boun
     decagon.set_alpha(1)
     decagon.set_zorder(0)
 
-    # Dibujar área entre bounds
-    ax.fill(angles, upper, color='gray', alpha=0.2, label='Bounds')
-    ax.fill(angles, lower, color='white', alpha=1)
+    # Dibujar áreas de bounds si existen
+    if upper_bound and lower_bound:
+        upper = df[upper_bound].tolist() + [df[upper_bound].iloc[0]]
+        lower = df[lower_bound].tolist() + [df[lower_bound].iloc[0]]
+        ax.fill(angles, upper, color='gray', alpha=0.2, label='Bounds')
+        ax.fill(angles, lower, color='white', alpha=1)
+    elif upper_bound:
+        upper = df[upper_bound].tolist() + [df[upper_bound].iloc[0]]
+        lower = [0] * (len(upper) - 1) + [0]
+        ax.fill(angles, upper, color='gray', alpha=0.2, label='Upper Bound')
+        ax.fill(angles, lower, color='white', alpha=1)
+    elif lower_bound:
+        lower = df[lower_bound].tolist() + [df[lower_bound].iloc[0]]
+        max_val = df.max().max()
+        upper = [max_val] * (len(lower) - 1) + [max_val]
+        ax.fill(angles, upper, color='gray', alpha=0.2, label='Lower Bound')
+        ax.fill(angles, lower, color='white', alpha=1)
 
-    # Dibujar muestras con colores personalizados
+    # Graficar muestras
     for sample, color in zip(sample_names, sample_colors):
         if sample in df.columns:
             values = df[sample].tolist() + [df[sample].iloc[0]]
             ax.plot(angles, values, color=color, linewidth=2, label=sample)
             ax.fill(angles, values, color=color, alpha=0.1)
 
-    # Configuración del eje y etiquetas
     ax.set_theta_offset(np.pi / 2)
     ax.set_theta_direction(-1)
     ax.set_thetagrids([])
 
-    # Agregar etiquetas en mayúscula, negrita, más lejos del centro
-    labels_upper = [label.upper() for label in labels[:-1]]
     for angle, label in zip(angles[:-1], labels_upper):
         x = angle
         y = ax.get_rmax() * 1.2
-        ax.text(
-            x, y, label,
-            ha='center',
-            va='center',
-            fontsize=font,
-            fontweight='bold',
-            #rotation=np.degrees(x),
-            #rotation_mode='anchor'
-        )
+        ax.text(x, y, label, ha='center', va='center', fontsize=font, fontweight='bold')
 
-    # Leyenda en esquina superior izquierda
     ax.legend(loc='upper left', bbox_to_anchor=(-0.35, 1.1))
-
     fig.tight_layout()
     return fig
     
-figure = generate_plot(df, font_size, sample_names, sample_colors)
+# Bloque de configuración de límites
+st.markdown("### Optional bounds configuration")
+bound_options = st.multiselect("Select which bounds exist in your data", options=['Upper Bound', 'Lower Bound'])
+
+upper_bound_col = None
+lower_bound_col = None
+
+if file:
+    column_options = df.columns.tolist()
+
+    if 'Upper Bound' in bound_options:
+        upper_bound_col = st.selectbox("Select the column for Upper Bound", options=column_options, key="ub")
+    if 'Lower Bound' in bound_options:
+        lower_bound_col = st.selectbox("Select the column for Lower Bound", options=column_options, key="lb")
+
+# Luego al llamar la función de graficado:
+figure = generate_plot(df, font_size, sample_names, sample_colors, lower_bound_col, upper_bound_col)
 
 st.pyplot(figure)
