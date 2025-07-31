@@ -3,3 +3,4 @@ numpy
 pandas
 streamlit==1.11.1
 pathlib
+##all ok
