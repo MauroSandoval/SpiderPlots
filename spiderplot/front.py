@@ -7,6 +7,7 @@ import numpy as np
 import csv
 import io
 from pathlib import Path
+import math
 
 # Configuración general
 st.set_page_config(layout="wide")
@@ -37,6 +38,34 @@ st.markdown(f"""<h4 style='color:{HEADER_COLOR}; font-weight: bold;'>📁 Upload
 
 col_file, col_sep = st.columns([3, 1])
 
+def smart_to_float(x):
+    if pd.isna(x):
+        return np.nan
+    s = str(x).strip()
+
+    # quitar espacios (incluye NBSP)
+    s = s.replace("\u00a0", "").replace(" ", "")
+
+    # casos con COMA y PUNTO
+    if "," in s and "." in s:
+        # si la última coma está después del último punto → formato "1.234,56"
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")  # '.' miles, ',' decimal
+        else:
+            s = s.replace(",", "")  # ',' miles, '.' decimal
+    else:
+        # solo coma → asumimos coma decimal
+        if "," in s:
+            s = s.replace(",", ".")
+        # solo punto → ya es decimal
+
+    # eliminar símbolos comunes si aparecieran
+    s = s.replace("%", "")
+    try:
+        return float(s)
+    except ValueError:
+        return np.nan
+
 with col_file:
     file = st.file_uploader("Upload csv file with sensory evaluation")
 
@@ -56,7 +85,9 @@ if file:
     
     df = plot_info.rename(columns={plot_info.columns[0]: "Attribute"})
     df.set_index("Attribute", inplace=True)
-
+        
+    df = df.applymap(smart_to_float)
+    
     st.markdown(f"""<h4 style='color:{HEADER_COLOR}; font-weight: bold;'>📊 Preview of Uploaded Data</h4>""", unsafe_allow_html=True)
     
     # Redondear solo columnas numéricas
@@ -155,9 +186,26 @@ if file:
         labels += [labels[0]]
         labels_upper = [label.upper() for label in labels[:-1]]
 
+        # 📌 1) Calcular rmax inteligente
+        cols_to_consider = sample_names.copy()
+        if upper_bound and upper_bound in df.columns:
+            cols_to_consider.append(upper_bound)
+        if lower_bound and lower_bound in df.columns:
+            cols_to_consider.append(lower_bound)
+
+        rmax = math.ceil(np.nanmax(df[cols_to_consider].to_numpy()))
+        if not np.isfinite(rmax) or rmax <= 0:
+            rmax = 1.0
+        else:
+            rmax *= 1.0  # margen del 5%
+
         fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
-        
+        ax.set_ylim(0, rmax)  # 🔹 fija escala para que nada salga de los anillos
         ax.tick_params(labelsize=font * 0.9)
+
+        # Anillos de referencia uniformes
+        ticks = np.linspace(0, rmax, int(rmax)+1)  # 5 anillos
+        ax.set_rgrids(ticks[1:], angle=0)  # no mostramos el 0 en el centro
 
         num_vars = len(labels) - 1
         ax.set_frame_on(False)
@@ -169,6 +217,7 @@ if file:
         decagon.set_alpha(1)
         decagon.set_zorder(0)
 
+        # 📌 2) Relleno de bounds
         if upper_bound and lower_bound:
             upper = df[upper_bound].tolist() + [df[upper_bound].iloc[0]]
             lower = df[lower_bound].tolist() + [df[lower_bound].iloc[0]]
@@ -181,11 +230,11 @@ if file:
             ax.fill(angles, lower, color='white', alpha=1)
         elif lower_bound:
             lower = df[lower_bound].tolist() + [df[lower_bound].iloc[0]]
-            max_val = df.max().max()
-            upper = [max_val] * (len(lower) - 1) + [max_val]
+            upper = [rmax] * (len(lower) - 1) + [rmax]
             ax.fill(angles, upper, color='gray', alpha=0.2, label='Lower Bound')
             ax.fill(angles, lower, color='white', alpha=1)
 
+        # 📌 3) Dibujar muestras
         for sample, color in zip(sample_names, sample_colors):
             if sample in df.columns:
                 values = df[sample].tolist() + [df[sample].iloc[0]]
@@ -198,7 +247,7 @@ if file:
 
         for angle, label in zip(angles[:-1], labels_upper):
             x = angle
-            y = ax.get_rmax() * 1.2
+            y = rmax * 1.25  # texto un poco fuera del último anillo
             ax.text(x, y, label, ha='center', va='center', fontsize=font*0.8, fontweight='bold')
 
         legend_loc, legend_anchor = legend_pos[1]  # unpack
