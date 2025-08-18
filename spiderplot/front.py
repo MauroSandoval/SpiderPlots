@@ -8,6 +8,8 @@ import csv
 import io
 from pathlib import Path
 import math
+import base64
+
 
 # Configuración general
 st.set_page_config(layout="wide")
@@ -130,7 +132,7 @@ if file:
     st.table(styled)
 
     st.markdown("---")
-    col1, col2 = st.columns([2, 1])
+    col1, col2 = st.columns([2, 2])
 
     with col2:
         font_size = st.number_input("Labels font size", min_value=5.0, step=0.5, value=6.0)
@@ -173,13 +175,10 @@ if file:
             if 'Lower Bound' in bound_options:
                 lower_bound_col = st.selectbox("Select the column for Lower Bound", options=column_options, key="lb")
 
-    # Selector de posición de la leyenda
-    legend_pos = st.selectbox("📍 Legend position", options=[
-        ("Top right", ("upper right", (1.3, 1.1))),
-        ("Top left", ("upper left", (-0.4, 1.1))),
-    ], format_func=lambda x: x[0])
 
-    def generate_plot(df, font, sample_names, sample_colors, lower_bound=None, upper_bound=None):
+    st.markdown("---")
+
+    def generate_plot(df, font, sample_names, sample_colors, legend_pos, lower_bound=None, upper_bound=None):
         labels = df.index.tolist()
         angles = np.linspace(0, 2 * np.pi, len(labels), endpoint=False).tolist()
         angles += [angles[0]]
@@ -254,14 +253,108 @@ if file:
         ax.legend(loc=legend_loc, bbox_to_anchor=legend_anchor, fontsize=font * 1.05)
         fig.tight_layout()
         return fig
-
-    st.markdown("---")
-    figure = generate_plot(df, font_size, sample_names, sample_colors, lower_bound_col, upper_bound_col)
     
-    buf = io.BytesIO()
-    figure.savefig(buf, format='png', bbox_inches='tight')
-    buf.seek(0)
+    def generate_line_plot(df, font, sample_names, sample_colors, legend_pos, lower_bound=None, upper_bound=None):
+        labels = df.index.tolist()
+        x = np.arange(len(labels))  # eje X = atributos
+        
+        # 📌 Calcular rmax (igual que en spider)
+        cols_to_consider = sample_names.copy()
+        if upper_bound and upper_bound in df.columns:
+            cols_to_consider.append(upper_bound)
+        if lower_bound and lower_bound in df.columns:
+            cols_to_consider.append(lower_bound)
 
-    col_l, col_plot, col_r = st.columns([1, 3, 1])
-    with col_plot:
-        st.image(buf)
+        rmax = math.ceil(np.nanmax(df[cols_to_consider].to_numpy()))
+        if not np.isfinite(rmax) or rmax <= 0:
+            rmax = 1.0
+
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        # 📌 Relleno de bounds
+        if upper_bound and lower_bound:
+            ax.fill_between(x, df[lower_bound], df[upper_bound], color='gray', alpha=0.2, label="Bounds")
+        elif upper_bound:
+            ax.fill_between(x, 0, df[upper_bound], color='gray', alpha=0.2, label="Upper Bound")
+        elif lower_bound:
+            ax.fill_between(x, df[lower_bound], rmax, color='gray', alpha=0.2, label="Lower Bound")
+
+        # 📌 Dibujar samples
+        for sample, color in zip(sample_names, sample_colors):
+            if sample in df.columns:
+                ax.plot(x, df[sample], marker=" ", color=color, linewidth=2, label=sample)
+                #ax.fill_between(x, 0, df[sample], color=color, alpha=0.05)
+
+        # 📌 Estética
+        ax.set_ylim(0, rmax)
+        ax.set_xticks(x)
+        ax.set_xticklabels([lbl.upper() for lbl in labels], rotation=45, ha="right", fontsize=font*0.9, fontweight="bold")
+        ax.tick_params(axis="y", labelsize=font*0.9)
+        ax.set_ylabel("Value", fontsize=font, fontweight="bold")
+
+        # 📌 Leyenda en mismo formato
+        legend_loc, legend_anchor = legend_pos[1]
+        ax.legend(loc=legend_loc, bbox_to_anchor=legend_anchor, fontsize=font*1.05)
+
+        fig.tight_layout()
+        return fig
+    
+
+    # Selector para elegir tipo de gráfico
+    plot_type = st.radio(
+        "📊 Selecciona el tipo de gráfico",
+        options=["Spider Plot", "Linear Plot"],
+        index=0,  # por defecto Spider Plot
+        horizontal=True
+    )
+
+    col_l, col_p, col_r = st.columns([1, 4, 1])
+
+    if plot_type == "Spider Plot":
+        with col_p:
+            legend_pos = st.selectbox(
+                "📍 Legend position Spider Plot", 
+                options=[
+                    ("Top right", ("upper right", (1.4, 1.1))),
+                    ("Top left", ("upper left", (-0.5, 1.1))),
+                ],
+                format_func=lambda x: x[0],
+                key="sb1"
+            )
+            
+            figure = generate_plot(
+                df, font_size, sample_names, sample_colors, legend_pos, 
+                lower_bound_col, upper_bound_col
+            )
+            
+            buf = io.BytesIO()
+            figure.savefig(buf, format="png", bbox_inches="tight")
+            buf.seek(0)
+            #st.image(buf)
+            
+            st.markdown(
+                f"<div style='text-align: center;'><img src='data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}' width='70%'></div>", 
+                unsafe_allow_html=True
+            )
+
+    elif plot_type == "Linear Plot":
+        with col_p:
+            legend_pos2 = st.selectbox(
+                "📍 Legend position Linear Plot", 
+                options=[
+                    ("Top right", ("upper right", (1.15, 1.1))),
+                    ("Top left", ("upper left", (-0.2, 1.1))),
+                ],
+                format_func=lambda x: x[0],
+                key="sb2"
+            )
+            
+            figure2 = generate_line_plot(
+                df, font_size, sample_names, sample_colors, legend_pos2, 
+                lower_bound_col, upper_bound_col
+            )
+            
+            buf2 = io.BytesIO()
+            figure2.savefig(buf2, format="png", bbox_inches="tight")
+            buf2.seek(0)
+            st.image(buf2)
